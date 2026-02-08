@@ -1,31 +1,38 @@
-import { Queue } from "bullmq";
+import { Queue, Job } from "bullmq";
 import redisClient from "../../db/redisConnection";
 import logger from "../../utils/logger";
+import { MailJobData } from "../../types";
 
-const mailQueue = new Queue("mail-queue", { connection: redisClient });
+const mailQueue = new Queue<MailJobData>("mail-queue", { connection: redisClient });
 
-mailQueue.on("waiting", (job) => {
-  logger.info(`send-mail: JobId: ${job.id} is waiting to be processed`);
+mailQueue.on("waiting", (job: Job<MailJobData>) => {
+  logger.info(`Mail Queue: Job ${job.id} (Campaign: ${job.data?.campaignId}) is waiting`);
 });
 
 mailQueue.on("error", (error) => {
-  logger.error(`send-mail: Error in mailQueue: ${(error as Error).message}`);
+  logger.error(`Mail Queue: Error - ${(error as Error).message}`);
 });
 
-mailQueue.on("progress", (job, progress) => {
-  logger.info(`send-mail: Job with id ${job.id} is ${progress}% complete.`);
+mailQueue.on("progress", (job: Job<MailJobData>, progress) => {
+  logger.info(`Mail Queue: Job ${job.id} is ${progress}% complete`);
 });
 
-const addToMailQueue = async (data: { from: string; subject: string }) => {
-  await mailQueue.add("sendMail", data, {
+const addToMailQueue = async (data: MailJobData): Promise<Job<MailJobData>> => {
+  const job = await mailQueue.add("sendMail", data, {
     attempts: 3,
-    removeOnComplete: true,
+    removeOnComplete: {
+      age: 3600,
+      count: 100, 
+    },
     backoff: {
       type: "exponential",
       delay: 1000,
     },
-    removeOnFail: true,
+    removeOnFail: {
+      age: 86400,
+    },
   });
+  return job;
 };
 
-export {mailQueue, addToMailQueue}
+export { mailQueue, addToMailQueue };
