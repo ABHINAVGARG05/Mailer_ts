@@ -3,19 +3,19 @@ import { MailOptions } from "nodemailer/lib/json-transport";
 import { env } from "../../constants";
 import logger from "../../utils/logger";
 
+
+const transporter: Transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: env.USER_EMAIL,
+    pass: env.USER_PASSWORD,
+  },
+  pool: true,          
+  maxConnections: 5,   
+  maxMessages: 100,    
+});
+
 class MailService {
-  private transporter: Transporter;
-
-  constructor() {
-    this.transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: env.USER_EMAIL,
-        pass: env.USER_PASSWORD,
-      },
-    });
-  }
-
   public async sendMail(
     from: string,
     to: string,
@@ -29,14 +29,9 @@ class MailService {
       html: htmlTemplate,
     };
 
-    try {
-      const info = await this.transporter.sendMail(mailOptions);
-      logger.info("Email sent:", info.messageId);
-      return info;
-    } catch (error) {
-      logger.error("Failed to send email:", error);
-      throw error;
-    }
+    const info = await transporter.sendMail(mailOptions);
+    logger.info(`Email sent to ${to}: ${info.messageId}`);
+    return info;
   }
 }
 
